@@ -1,0 +1,122 @@
+name: money_tracker_app
+description: "로그 머니 — Personal budget tracker for Android (local-first SQLite + Google Sheets mirror)."
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Module-1: persistence
+  drift: ^2.18.0
+  sqlite3_flutter_libs: ^0.5.27
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+  # Module-2: domain
+  uuid: ^4.5.1
+  intl: ^0.19.0
+
+  # Module-5/6: state mgmt + routing
+  flutter_riverpod: ^2.6.1
+  go_router: ^14.6.2
+
+  # Module-7: external link launcher (Sheets URL)
+  url_launcher: ^6.3.1
+
+  # Module-3: auth + Sheets
+  google_sign_in: ^6.2.1
+  googleapis: ^13.2.0
+  googleapis_auth: ^1.6.0
+  extension_google_sign_in_as_googleapis_auth: ^2.0.12
+  flutter_secure_storage: ^9.2.2
+  http: ^1.2.2
+
+  # Module-4: background sync (0.9 = current Flutter v2 plugin API)
+  workmanager: ^0.9.0+3
+
+  # M2: analytics charts (donut + line)
+  fl_chart: ^0.69.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+  # Drift codegen
+  drift_dev: ^2.18.0
+  build_runner: ^2.4.13
+
+  # Test doubles
+  mocktail: ^1.0.4
+
+  # M2: in-memory Drift integration tests (Plan FR-31).
+  # Bundles native sqlite3 binaries so test/integration runs on host CI/Windows.
+  sqlite3: ^2.5.0
+
+  # App icon generator — assets/app-icon.png에서 mipmap-* 자동 생성.
+  flutter_launcher_icons: ^0.14.1
+
+  # Native splash screen — 앱 시작 시 검은 화면 대신 아이콘 표시.
+  flutter_native_splash: ^2.4.0
+
+# Configuration for flutter_launcher_icons.
+# Run: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true # generates android/.../mipmap-*/ic_launcher.png
+  ios: false # 본인 앱은 Android 전용
+  image_path: "assets/app-icon.png"
+  min_sdk_android: 21
+  remove_alpha_ios: true
+
+# Configuration for flutter_native_splash.
+# Run: dart run flutter_native_splash:create
+flutter_native_splash:
+  android: true
+  ios: false
+  web: false
+
+  # Light mode splash — 흰색 배경 + 중앙 앱 아이콘.
+  color: "#FFB370"
+  image: assets/app-icon.png
+
+  # Dark mode splash — primary 톤 살짝.
+  color_dark: "#1A1B1F"
+  image_dark: assets/app-icon.png
+
+  # Android 12+ 신 splash spec.
+  # icon_background_color 제거 — 동그란 마스크 없이 더 큰 아이콘 표시.
+  # (마스크 사용 시 288dp 영역 중 192dp만 보여서 끼어보임.)
+  android_12:
+    color: "#FFB370"
+    image: assets/app-icon.png
+    color_dark: "#1A1B1F"
+    image_dark: assets/app-icon.png
+
+  # 풀스크린 (status bar 가려도 splash 유지).
+  fullscreen: false
+  android_gravity: center
+
+flutter:
+  uses-material-design: true
+
+  # SUIT — 한국어/영문 통합 sans-serif (OFL, sunn-us/SUIT).
+  # Theme이 사용하는 4 weight만 번들 (APK 약 ~2.3MB 추가).
+  # 나머지 weight 파일은 assets/fonts/에 그대로 두어도 번들 안 됨.
+  fonts:
+    - family: SUIT
+      fonts:
+        - asset: assets/fonts/SUIT-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/SUIT-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/SUIT-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/SUIT-Bold.ttf
+          weight: 700
