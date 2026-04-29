@@ -1,0 +1,1 @@
+enum CategoryKind { expense, income }
