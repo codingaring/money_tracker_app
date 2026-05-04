@@ -1,5 +1,5 @@
 name: money_tracker_app
-description: "로그 머니 — Personal budget tracker for Android (local-first SQLite + Google Sheets mirror)."
+description: "머니 로그 — Personal budget tracker for Android (local-first SQLite + Google Sheets mirror)."
 publish_to: "none"
 version: 0.1.0+1
 

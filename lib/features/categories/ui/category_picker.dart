@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/db/app_database.dart';
 import '../../../app/providers.dart';
 import '../domain/category.dart';
+import 'category_form_sheet.dart';
 
 class CategoryPicker extends ConsumerWidget {
   const CategoryPicker({
@@ -68,19 +69,34 @@ class CategoryPicker extends ConsumerWidget {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: topLevels.map((c) {
-                return FilterChip(
-                  label: Text(c.name),
-                  selected: selectedTopId == c.id,
-                  onSelected: (sel) {
-                    if (sel) {
-                      onChanged(c.id);
-                    } else {
-                      onChanged(null);
-                    }
-                  },
-                );
-              }).toList(),
+              children: [
+                ...topLevels.map((c) => FilterChip(
+                      label: Text(c.name),
+                      selected: selectedTopId == c.id,
+                      onSelected: (sel) {
+                        if (sel) {
+                          onChanged(c.id);
+                        } else {
+                          onChanged(null);
+                        }
+                      },
+                    )),
+                ActionChip(
+                  avatar: Icon(Icons.add,
+                      size: 16,
+                      color: theme.colorScheme.primary),
+                  label: Text('추가',
+                      style:
+                          TextStyle(color: theme.colorScheme.primary)),
+                  backgroundColor: theme.colorScheme.primaryContainer,
+                  onPressed: () => showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    useSafeArea: true,
+                    builder: (_) => CategoryFormSheet(defaultKind: kind),
+                  ),
+                ),
+              ],
             ),
             // 2단: 자식 (대분류 선택됐을 때만)
             if (selectedTopId != null && selectedTopName != null) ...[

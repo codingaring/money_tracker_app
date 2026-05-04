@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/providers.dart';
+import '../../../core/ui/money_format.dart';
 import '../../transactions/domain/search_filter.dart';
+import '../data/budget_repository.dart';
 import 'category_donut_chart.dart';
 import 'daily_calendar.dart';
 import 'fixed_variable_line_chart.dart';
@@ -52,6 +54,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final dailyMap = ref.watch(dailyExpenseMapProvider(_selectedMonth));
     final donut = ref.watch(categoryDonutProvider(_selectedMonth));
     final line = ref.watch(fixedVariableSeriesProvider);
+    final overlay = ref.watch(budgetOverlayProvider(_selectedMonth));
+    final overlayStatuses = overlay.valueOrNull ?? const <BudgetStatus>[];
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -99,6 +103,17 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               ),
             ),
           ),
+          if (overlayStatuses.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            _SectionTitle(text: '예산 현황'),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: _BudgetOverlaySection(statuses: overlayStatuses),
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           _SectionTitle(text: '고정비 vs 변동비'),
           const SizedBox(height: 4),
@@ -233,6 +248,85 @@ class _ErrorBox extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Text('차트 로드 실패\n$message'),
+    );
+  }
+}
+
+// Design Ref: §5.6 — _BudgetOverlaySection. 예산 있는 카테고리만 표시 (ratio desc 정렬).
+class _BudgetOverlaySection extends StatelessWidget {
+  const _BudgetOverlaySection({required this.statuses});
+  final List<BudgetStatus> statuses;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (var i = 0; i < statuses.length; i++) ...[
+          if (i > 0) const SizedBox(height: 16),
+          _BudgetRow(status: statuses[i]),
+        ],
+      ],
+    );
+  }
+}
+
+class _BudgetRow extends StatelessWidget {
+  const _BudgetRow({required this.status});
+  final BudgetStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isOver = status.isOver;
+    final barColor =
+        isOver ? theme.colorScheme.error : theme.colorScheme.primary;
+    final pct = (status.ratio * 100).round();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                status.categoryName,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+            if (isOver)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Icon(Icons.warning_rounded,
+                    size: 16, color: theme.colorScheme.error),
+              ),
+            Text(
+              '$pct%',
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: isOver ? theme.colorScheme.error : null,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: status.ratio.clamp(0.0, 1.0),
+            backgroundColor: theme.colorScheme.surfaceContainer,
+            color: barColor,
+            minHeight: 8,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${Money.formatKrw(status.spent)} / ${Money.formatKrw(status.limit)}',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }

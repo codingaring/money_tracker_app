@@ -116,6 +116,57 @@ class KvStore extends Table {
   Set<Column> get primaryKey => {key};
 }
 
+// Design Ref: §3.1 — recurring_rules (M4 신규 v5, M5 v6 delta).
+// isDue 체크: recurrenceType별 switch — monthly/weekly/daily.
+// v6 delta: recurrence_type TEXT DEFAULT 'monthly', day_of_week INTEGER nullable.
+@DataClassName('RecurringRuleRow')
+class RecurringRules extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// FK → tx_templates. 템플릿에서 거래 prefill.
+  IntColumn get templateId => integer()
+      .customConstraint('NOT NULL REFERENCES tx_templates(id)')();
+
+  /// 1-28. 29-31은 UI에서 거부. 2월 안전을 위해 최대 28일. daily/weekly에서는 무시.
+  IntColumn get dayOfMonth => integer()();
+
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
+
+  /// 가장 최근 확인(confirm or skip) 시각. NULL = 한 번도 처리 안 함.
+  DateTimeColumn get lastConfirmedAt => dateTime().nullable()();
+
+  /// v6: 'monthly' | 'weekly' | 'daily'. DEFAULT 'monthly'.
+  TextColumn get recurrenceType =>
+      text().withDefault(const Constant('monthly'))();
+
+  /// v6: 주간 반복 시 요일 (1=월~7=일, DateTime.weekday 기준). NULL = monthly/daily.
+  IntColumn get dayOfWeek => integer().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+}
+
+// Design Ref: §3.2 — budgets (M4 신규 v5). 카테고리별 월 한도.
+// UNIQUE(category_id) — 카테고리당 하나의 한도만.
+@DataClassName('BudgetRow')
+class Budgets extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// FK → categories. NOT NULL UNIQUE — 카테고리당 1행.
+  IntColumn get categoryId => integer()
+      .customConstraint('NOT NULL UNIQUE REFERENCES categories(id)')();
+
+  /// 원(KRW). 양수만 (UI에서 > 0 검증).
+  IntColumn get monthlyLimit => integer()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+}
+
 // Design Ref: §3.1 — tx_templates (M3 신규 v4).
 // 자주 쓰는 거래의 "껍데기"를 저장 — 사용 시 InputScreen에서 폼 prefill 후
 // 일반 거래로 insert. amount는 nullable (사용 시점에 입력 가능).

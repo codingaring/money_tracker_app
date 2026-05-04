@@ -119,6 +119,8 @@ class _CategoryList extends ConsumerWidget {
               children: children,
               onEdit: (c) => _openEdit(context, c),
               onDelete: (c) => _confirmDelete(context, ref, c),
+              onChildReorder: (ids) =>
+                  ref.read(categoryRepositoryProvider).reorder(ids),
             );
           },
         );
@@ -176,12 +178,14 @@ class _TopLevelTile extends StatelessWidget {
     required this.children,
     required this.onEdit,
     required this.onDelete,
+    required this.onChildReorder,
   }) : super(key: key);
 
   final Category parent;
   final List<Category> children;
   final void Function(Category c) onEdit;
   final void Function(Category c) onDelete;
+  final Future<void> Function(List<int> orderedChildIds) onChildReorder;
 
   @override
   Widget build(BuildContext context) {
@@ -249,11 +253,26 @@ class _TopLevelTile extends StatelessWidget {
                   ),
                 )
               else
-                ...children.map((c) => _ChildTile(
-                      child: c,
-                      onEdit: () => onEdit(c),
-                      onDelete: () => onDelete(c),
-                    )),
+                ReorderableListView(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  onReorder: (oldIdx, newIdx) {
+                    final adjusted = newIdx > oldIdx ? newIdx - 1 : newIdx;
+                    final mutable = [...children];
+                    final moved = mutable.removeAt(oldIdx);
+                    mutable.insert(adjusted, moved);
+                    onChildReorder(mutable.map((c) => c.id).toList());
+                  },
+                  children: [
+                    for (final c in children)
+                      _ChildTile(
+                        key: ValueKey('child-${c.id}'),
+                        child: c,
+                        onEdit: () => onEdit(c),
+                        onDelete: () => onDelete(c),
+                      ),
+                  ],
+                ),
             ],
           ),
         ),
@@ -264,6 +283,7 @@ class _TopLevelTile extends StatelessWidget {
 
 class _ChildTile extends StatelessWidget {
   const _ChildTile({
+    super.key,
     required this.child,
     required this.onEdit,
     required this.onDelete,
@@ -316,6 +336,9 @@ class _ChildTile extends StatelessWidget {
             tooltip: '삭제',
             onPressed: onDelete,
           ),
+          Icon(Icons.drag_handle_rounded,
+              size: 18, color: theme.colorScheme.outline),
+          const SizedBox(width: 4),
         ],
       ),
     );

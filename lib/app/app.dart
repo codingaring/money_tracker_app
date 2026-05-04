@@ -19,7 +19,7 @@ class _AppState extends ConsumerState<App> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: '로그 머니',
+      title: '머니 로그',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),

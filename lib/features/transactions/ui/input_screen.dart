@@ -16,11 +16,16 @@ import '../domain/transaction.dart';
 import 'input_form_state.dart';
 
 class InputScreen extends ConsumerStatefulWidget {
-  const InputScreen({super.key, this.existing});
+  const InputScreen({super.key, this.existing, this.initialTemplateId});
 
   /// When non-null the screen runs in **edit mode**: form is pre-populated
   /// from this row and submit calls `Repository.update` (FR-05).
   final TxRow? existing;
+
+  /// When non-null (passed from RecurringDueSheet), applies the template on
+  /// open and pops with `true` after a successful save so the sheet can
+  /// call markHandled.
+  final int? initialTemplateId;
 
   @override
   ConsumerState<InputScreen> createState() => _InputScreenState();
@@ -42,6 +47,9 @@ class _InputScreenState extends ConsumerState<InputScreen> {
       if (_isEdit) {
         _populateFromExisting();
       } else {
+        if (widget.initialTemplateId != null) {
+          _applyInitialTemplate(widget.initialTemplateId!);
+        }
         _amountFocus.requestFocus();
       }
     });
@@ -67,12 +75,31 @@ class _InputScreenState extends ConsumerState<InputScreen> {
     _memoController.text = tx.memo ?? '';
   }
 
+  Future<void> _applyInitialTemplate(int templateId) async {
+    final template =
+        await ref.read(templateRepositoryProvider).findById(templateId);
+    if (template == null || !mounted) return;
+    ref.read(inputFormProvider.notifier).applyTemplate(template);
+    _amountController.text =
+        template.amount != null ? Money.format(template.amount!) : '';
+    _memoController.text = template.memo ?? '';
+  }
+
   @override
   void dispose() {
     _amountController.dispose();
     _memoController.dispose();
     _amountFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveAsTemplate() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _SaveAsTemplateSheet(form: ref.read(inputFormProvider)),
+    );
   }
 
   Future<void> _openPicker() async {
@@ -119,6 +146,14 @@ class _InputScreenState extends ConsumerState<InputScreen> {
         await ref.read(templateRepositoryProvider).markUsed(templateId);
       }
       if (!mounted) return;
+
+      if (widget.initialTemplateId != null) {
+        // Opened from RecurringDueSheet — pop with true so sheet calls markHandled.
+        ref.read(inputFormProvider.notifier).reset();
+        Navigator.of(context).pop(true);
+        return;
+      }
+
       // Reset form, keep type for fast repeated entry.
       final keepType = form.type;
       ref.read(inputFormProvider.notifier).reset();
@@ -154,6 +189,14 @@ class _InputScreenState extends ConsumerState<InputScreen> {
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: Text(_isEdit ? '거래 수정' : '거래 추가'),
+        actions: [
+          if (!_isEdit)
+            IconButton(
+              icon: const Icon(Icons.bookmark_add_outlined),
+              tooltip: '템플릿으로 저장',
+              onPressed: _saveAsTemplate,
+            ),
+        ],
       ),
       body: asyncAccounts.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -521,6 +564,127 @@ class _TransferToCardHint extends StatelessWidget {
                 color: theme.colorScheme.onTertiaryContainer,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Save-as-template sheet ────────────────────────────────────────────────────
+
+class _SaveAsTemplateSheet extends ConsumerStatefulWidget {
+  const _SaveAsTemplateSheet({required this.form});
+
+  final InputFormState form;
+
+  @override
+  ConsumerState<_SaveAsTemplateSheet> createState() =>
+      _SaveAsTemplateSheetState();
+}
+
+class _SaveAsTemplateSheetState extends ConsumerState<_SaveAsTemplateSheet> {
+  final _nameController = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = '이름을 입력하세요');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final repo = ref.read(templateRepositoryProvider);
+      final dup = await repo.findByName(name);
+      if (dup != null) {
+        if (mounted) setState(() => _error = '같은 이름의 템플릿이 이미 있습니다');
+        return;
+      }
+      final f = widget.form;
+      await repo.create(
+        name: name,
+        type: f.type,
+        amount: f.amount > 0 ? f.amount : null,
+        fromAccountId: f.fromAccountId,
+        toAccountId: f.toAccountId,
+        categoryId: f.categoryId,
+        memo: f.memo.isNotEmpty ? f.memo : null,
+      );
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('템플릿에 저장됨'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '템플릿으로 저장',
+            style: theme.textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _nameController,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: '템플릿 이름',
+              border: OutlineInputBorder(),
+            ),
+            maxLength: 40,
+            onSubmitted: (_) => _save(),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              _error!,
+              style: TextStyle(
+                  color: theme.colorScheme.error, fontSize: 12),
+            ),
+          ],
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('저장'),
           ),
         ],
       ),

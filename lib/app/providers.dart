@@ -11,12 +11,15 @@ import '../features/accounts/data/balance_reconciler.dart';
 import '../features/accounts/data/card_detail_repository.dart';
 import '../features/accounts/domain/card_detail_metrics.dart';
 import '../features/analytics/data/analytics_repository.dart';
+import '../features/analytics/data/budget_repository.dart';
 import '../features/analytics/domain/category_segment.dart';
 import '../features/analytics/domain/monthly_split_series.dart';
+// M5 Report DTOs (defined inline in analytics_repository.dart)
 import '../features/auth/data/google_auth_service.dart';
 import '../features/categories/data/category_repository.dart';
 import '../features/categories/domain/category.dart';
 import '../features/dashboard/data/dashboard_repository.dart';
+import '../features/dashboard/data/recurring_rule_repository.dart';
 import '../features/dashboard/domain/dashboard_metrics.dart';
 import '../features/sync/data/local_queue_enqueuer.dart';
 import '../features/sync/data/sync_queue_dao.dart';
@@ -282,3 +285,76 @@ final googleAuthProvider = Provider<GoogleAuthService>((ref) {
 final authSignedInProvider = StreamProvider<bool>(
   (ref) => ref.watch(googleAuthProvider).watchSignedIn(),
 );
+
+// ── Recurring Rules ───────────────────────────────────────────────────────────
+
+// Design Ref: §6 — recurring providers (M4).
+final recurringRuleRepositoryProvider = Provider<RecurringRuleRepository>(
+  (ref) => RecurringRuleRepository(ref.watch(appDatabaseProvider)),
+);
+
+final allRecurringRulesProvider = StreamProvider<List<RecurringRule>>(
+  (ref) => ref.watch(recurringRuleRepositoryProvider).watchAll(),
+);
+
+/// today 기준 isDue == true인 규칙만. allRecurringRules 변경 시 자동 재계산.
+final dueRecurringRulesProvider = Provider<List<RecurringRule>>((ref) {
+  final today = DateTime.now();
+  return ref
+          .watch(allRecurringRulesProvider)
+          .valueOrNull
+          ?.where((r) => r.isDue(today))
+          .toList() ??
+      const [];
+});
+
+// ── M5 Report Providers ───────────────────────────────────────────────────────
+
+// Design Ref: §6 — Report providers (M5). FutureProvider.family<T, int(year)>.
+
+final monthlyTrendProvider =
+    FutureProvider.family<List<MonthlyTrend>, int>((ref, year) {
+  ref.watch(transactionsStreamProvider);
+  return ref.watch(analyticsRepositoryProvider).monthlyTrend(year: year);
+});
+
+final monthlyCategorySpendProvider =
+    FutureProvider.family<List<MonthlyCategorySpend>, int>((ref, year) {
+  ref.watch(transactionsStreamProvider);
+  return ref
+      .watch(analyticsRepositoryProvider)
+      .monthlyCategorySpend(year: year);
+});
+
+final yearSummaryProvider =
+    FutureProvider.family<YearSummary, int>((ref, year) {
+  ref.watch(transactionsStreamProvider);
+  return ref.watch(analyticsRepositoryProvider).yearSummary(year: year);
+});
+
+final budgetVsActualProvider =
+    FutureProvider.family<List<BudgetVsActual>, int>((ref, year) {
+  ref.watch(transactionsStreamProvider);
+  ref.watch(allBudgetsProvider);
+  return ref.watch(analyticsRepositoryProvider).budgetVsActual(year: year);
+});
+
+// ── Budget ────────────────────────────────────────────────────────────────────
+
+// Design Ref: §6 — budget providers (M4).
+final budgetRepositoryProvider = Provider<BudgetRepository>(
+  (ref) => BudgetRepository(ref.watch(appDatabaseProvider)),
+);
+
+/// 예산 있는 카테고리 전체. Drift watchAll() — upsert/delete 시 자동 갱신.
+final allBudgetsProvider = StreamProvider<List<Budget>>(
+  (ref) => ref.watch(budgetRepositoryProvider).watchAll(),
+);
+
+/// 월별 예산 현황 (지출/한도 비율). 거래·예산 변경 시 자동 재계산.
+final budgetOverlayProvider =
+    FutureProvider.family<List<BudgetStatus>, DateTime>((ref, month) async {
+  ref.watch(transactionsStreamProvider);
+  ref.watch(allBudgetsProvider);
+  return ref.watch(analyticsRepositoryProvider).budgetOverlay(month: month);
+});

@@ -1,13 +1,17 @@
-// Reference UI redesign: 4 branches (홈/내역/분석/계좌) + center docked FAB
+// Reference UI redesign: 5 branches (홈/내역/분석/계좌/리포트) + center docked FAB
 // for /input + /settings pushed from Home AppBar. /accounts/card/:id stays
 // nested under /accounts so back gesture pops to AccountsScreen.
+// M5: +리포트(4) branch + _BottomNav item (Design Ref: §8).
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/accounts/ui/accounts_screen.dart';
+import '../features/analytics/ui/budget_screen.dart';
+import '../features/dashboard/ui/recurring_rules_screen.dart';
 import '../features/accounts/ui/card_detail_screen.dart';
 import '../features/analytics/ui/analytics_screen.dart';
+import '../features/analytics/ui/reports_screen.dart';
 import '../features/categories/ui/categories_screen.dart';
 import '../features/dashboard/ui/home_screen.dart';
 import '../features/settings/ui/settings_screen.dart';
@@ -54,10 +58,18 @@ GoRouter buildAppRouter() {
           ]),
         ],
       ),
+      GoRoute(
+        path: '/reports',
+        builder: (_, _) => const ReportsScreen(),
+      ),
       // Top-level push routes — replace the shell so they cover the FAB+bar.
       GoRoute(
         path: '/input',
-        builder: (_, _) => const InputScreen(),
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final templateId = extra?['templateId'] as int?;
+          return InputScreen(initialTemplateId: templateId);
+        },
       ),
       GoRoute(
         path: '/settings',
@@ -70,6 +82,14 @@ GoRouter buildAppRouter() {
           GoRoute(
             path: 'categories',
             builder: (_, _) => const CategoriesScreen(),
+          ),
+          GoRoute(
+            path: 'recurring',
+            builder: (_, _) => const RecurringRulesScreen(),
+          ),
+          GoRoute(
+            path: 'budget',
+            builder: (_, _) => const BudgetScreen(),
           ),
         ],
       ),

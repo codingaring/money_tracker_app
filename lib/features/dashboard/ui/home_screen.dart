@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers.dart';
 import '../../../app/theme.dart';
 import '../../../core/ui/money_format.dart';
+import '../data/recurring_rule_repository.dart';
 import '../domain/dashboard_metrics.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -21,7 +22,7 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('로그 머니'),
+        title: const Text('머니 로그'),
         actions: [
           if (!signedIn || pending > 0)
             Padding(
@@ -65,10 +66,14 @@ class _DashboardBody extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
       children: [
         _HeroBalance(metrics: metrics),
+        // Design Ref: §5.1 — 반복 거래 도래 배지. isDue 규칙 있을 때만 표시.
+        const _RecurringDueBadge(),
         const SizedBox(height: 20),
         _MonthMetricsRow(metrics: metrics),
         const SizedBox(height: 20),
         _AssetBreakdownCard(metrics: metrics),
+        const SizedBox(height: 20),
+        const _ReportCard(),
       ],
     );
   }
@@ -86,7 +91,9 @@ class _HeroBalance extends StatelessWidget {
     final theme = Theme.of(context);
     final available = metrics.availableCash;
     final negative = available < 0;
-    final color = negative ? theme.colorScheme.error : theme.colorScheme.onSurface;
+    final color = negative
+        ? theme.colorScheme.error
+        : theme.colorScheme.onSurface;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -204,10 +211,12 @@ class _MetricMiniCard extends StatelessWidget {
             child: Icon(icon, color: color, size: 20),
           ),
           const SizedBox(height: 12),
-          Text(label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              )),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
@@ -248,8 +257,7 @@ class _AssetBreakdownCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('순자산',
-                    style: theme.textTheme.titleMedium),
+                Text('순자산', style: theme.textTheme.titleMedium),
                 Text(
                   Money.formatKrw(net),
                   style: theme.textTheme.titleLarge?.copyWith(
@@ -310,10 +318,12 @@ class _BreakdownRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              )),
+          Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           Text(
             text,
             style: theme.textTheme.titleMedium?.copyWith(
@@ -322,6 +332,46 @@ class _BreakdownRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Report Card ──────────────────────────────────────────────────────────────
+
+class _ReportCard extends StatelessWidget {
+  const _ReportCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadii.card),
+      onTap: () => context.push('/reports'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(AppRadii.card),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.bar_chart_rounded,
+                color: theme.colorScheme.primary, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '연간 리포트',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded,
+                color: theme.colorScheme.onSurfaceVariant),
+          ],
+        ),
       ),
     );
   }
@@ -346,14 +396,19 @@ class _PendingChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.cloud_off,
-              size: 14, color: theme.colorScheme.onSurfaceVariant),
+          Icon(
+            Icons.cloud_off,
+            size: 14,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(width: 6),
-          Text('$count',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-              )),
+          Text(
+            '$count',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
@@ -375,15 +430,220 @@ class _NotSignedInChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.warning_amber,
-              size: 14, color: theme.colorScheme.error),
+          Icon(Icons.warning_amber, size: 14, color: theme.colorScheme.error),
           const SizedBox(width: 6),
-          Text('로그인 필요',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.error,
-                fontWeight: FontWeight.w700,
-              )),
+          Text(
+            '로그인 필요',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.error,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Recurring Due Badge ───────────────────────────────────────────────────────
+
+// Design Ref: §5.1 — 반복 거래 도래 배지. dueRecurringRulesProvider watch.
+// count > 0일 때만 표시. 탭 → _RecurringDueSheet 모달.
+class _RecurringDueBadge extends ConsumerWidget {
+  const _RecurringDueBadge();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final due = ref.watch(dueRecurringRulesProvider);
+    if (due.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        onTap: () => showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          builder: (_) => const _RecurringDueSheet(),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(AppRadii.card),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.assignment_late_outlined,
+                color: theme.colorScheme.onSecondaryContainer,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '반복 거래 ${due.length}건 처리 필요',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSecondaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: theme.colorScheme.onSecondaryContainer,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Recurring Due Sheet ───────────────────────────────────────────────────────
+
+// Design Ref: §5.2 — RecurringDueSheet. HomeScreen 전용 private.
+// "건너뜀": markHandled → badge count 감소 (stream 재계산).
+// "입력 화면으로": push /input extra:{templateId} → pop(true) → markHandled.
+// 모든 항목 처리 시 ref.listen → 자동 닫힘.
+class _RecurringDueSheet extends ConsumerWidget {
+  const _RecurringDueSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final due = ref.watch(dueRecurringRulesProvider);
+    final theme = Theme.of(context);
+
+    ref.listen<List<RecurringRule>>(dueRecurringRulesProvider, (_, rules) {
+      if (rules.isEmpty && context.mounted) {
+        Navigator.of(context).maybePop();
+      }
+    });
+
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.3,
+                ),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('처리할 반복 거래', style: theme.textTheme.titleLarge),
+                const SizedBox(height: 4),
+                Text(
+                  '도래한 항목을 확인하거나 건너뛰세요',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ...due.map((rule) => _DueRuleItem(rule: rule, ref: ref)),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+}
+
+class _DueRuleItem extends StatelessWidget {
+  const _DueRuleItem({required this.rule, required this.ref});
+
+  final RecurringRule rule;
+  final WidgetRef ref;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final amountText = rule.templateAmount != null
+        ? Money.formatKrw(rule.templateAmount!)
+        : '금액 미정';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+          child: Row(
+            children: [
+              const Icon(Icons.assignment_outlined, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      rule.templateName,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      '매월 ${rule.dayOfMonth}일  ·  $amountText',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(56, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                onPressed: () async {
+                  await ref
+                      .read(recurringRuleRepositoryProvider)
+                      .markHandled(rule.id);
+                },
+                child: const Text('건너뜀'),
+              ),
+              const SizedBox(width: 4),
+              FilledButton.tonal(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(72, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                ),
+                onPressed: () async {
+                  final result = await context.push<bool>(
+                    '/input',
+                    extra: <String, dynamic>{'templateId': rule.templateId},
+                  );
+                  if (result == true && context.mounted) {
+                    await ref
+                        .read(recurringRuleRepositoryProvider)
+                        .markHandled(rule.id);
+                  }
+                },
+                child: const Text('입력'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

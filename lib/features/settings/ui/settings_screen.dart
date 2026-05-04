@@ -10,6 +10,8 @@ import '../../../app/providers.dart';
 import '../../../core/ui/money_format.dart';
 import '../../../infrastructure/sheets/sheets_client.dart';
 import '../../accounts/data/balance_reconciler.dart';
+import '../../categories/data/category_repository.dart';
+import '../../categories/data/category_seed.dart';
 import '../../sync/service/sync_service.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -22,6 +24,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _syncing = false;
   bool _reconciling = false;
+  bool _resetting = false;
   String? _email;
   DateTime? _lastSyncAt;
   String? _spreadsheetId;
@@ -129,6 +132,69 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Future<void> _confirmReset() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('전체 데이터 초기화'),
+        content: const Text(
+          '거래 내역, 계좌, 템플릿, 반복 거래, 예산이 모두 삭제됩니다.\n'
+          '기본 카테고리는 다시 생성됩니다.\n\n'
+          '이 작업은 되돌릴 수 없습니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('초기화'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _resetAllData();
+  }
+
+  Future<void> _resetAllData() async {
+    setState(() => _resetting = true);
+    try {
+      final db = ref.read(appDatabaseProvider);
+      await db.transaction(() async {
+        await db.delete(db.transactions).go();
+        await db.delete(db.syncQueue).go();
+        await db.delete(db.recurringRules).go();
+        await db.delete(db.budgets).go();
+        await db.delete(db.txTemplates).go();
+        await db.delete(db.accounts).go();
+        await db.delete(db.categories).go();
+        await db.delete(db.kvStore).go();
+      });
+      await CategorySeeder(CategoryRepository(db)).run();
+      if (!mounted) return;
+      setState(() {
+        _email = null;
+        _lastSyncAt = null;
+        _spreadsheetId = null;
+        _reconcileResult = null;
+        _flashMessage = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('초기화 완료')),
+      );
+    } catch (e) {
+      if (mounted) setState(() => _flashMessage = '초기화 오류: $e');
+    } finally {
+      if (mounted) setState(() => _resetting = false);
+    }
+  }
+
   Future<void> _openSheet() async {
     if (_spreadsheetId == null) return;
     final url = Uri.parse(
@@ -224,6 +290,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   subtitle: const Text('대분류·소분류로 정리하면 분석이 더 정확해집니다'),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => context.push('/settings/categories'),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ListTile(
+                  leading: const Icon(Icons.repeat_rounded),
+                  title: const Text('반복 거래 관리'),
+                  subtitle: const Text('매월 고정 지출·수입을 등록해두면 알림을 받습니다'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push('/settings/recurring'),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ListTile(
+                  leading: const Icon(Icons.savings_outlined),
+                  title: const Text('예산 관리'),
+                  subtitle: const Text('카테고리별 월 한도를 설정하면 분석 탭에서 초과 여부를 확인합니다'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push('/settings/budget'),
                 ),
               ],
             ),
@@ -336,6 +418,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 24),
+
+          _SectionTitle('초기화'),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '거래 내역, 계좌, 템플릿, 반복 거래, 예산을 모두 삭제합니다. '
+                    '기본 카테고리는 다시 생성됩니다.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _resetting ? null : _confirmReset,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor:
+                          Theme.of(context).colorScheme.error,
+                      side: BorderSide(
+                          color: Theme.of(context).colorScheme.error),
+                    ),
+                    icon: _resetting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child:
+                                CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.delete_sweep_outlined),
+                    label: const Text('전체 데이터 초기화'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
 
           _SectionTitle('정보'),
           Card(

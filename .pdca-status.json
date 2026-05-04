@@ -1,0 +1,10 @@
+{
+  "budget-tracker-m5": {
+    "phase": "archived",
+    "matchRate": 99.5,
+    "iterationCount": 0,
+    "startedAt": "2026-04-30T00:00:00.000Z",
+    "archivedAt": "2026-05-04T00:00:00.000Z",
+    "archivedTo": "docs/archive/2026-05/budget-tracker-m5/"
+  }
+}
